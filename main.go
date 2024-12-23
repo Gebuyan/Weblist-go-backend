@@ -37,7 +37,7 @@ func main() {
 	}
 	defer DB.Close()
 	//模型绑定(绑定到表上，如果表不存在则创建)
-	DB.AutoMigrate(&Todo{})
+	DB.AutoMigrate(&Todo{}) //表名：todos
 
 	r := gin.Default()
 
@@ -54,7 +54,7 @@ func main() {
 					"msg": "ok",
 				})
 			} else {
-				context.JSON(http.StatusBadRequest, gin.H{
+				context.JSON(http.StatusOK, gin.H{
 					"err": err.Error(),
 				})
 			}
@@ -64,19 +64,25 @@ func main() {
 		v1Group.DELETE("/todo/:id", func(context *gin.Context) {
 
 			id := context.Param("id")
-			if err := DB.Delete(&Todo{}, id); err == nil {
+			if err := DB.Delete(&Todo{}, id).Error; err == nil {
 				context.JSON(http.StatusOK, gin.H{
-					"msg": "ok",
+					"id": "deleted",
 				})
 			} else {
 				context.JSON(http.StatusBadRequest, gin.H{
-					"err": err,
+					"err": err.Error(),
 				})
 			}
 		})
 		//修改待办事项
 		v1Group.PUT("/todo/:id", func(context *gin.Context) {
-			id := context.Param("id")
+			id, ok := context.Params.Get("id")
+			if !ok {
+				context.JSON(http.StatusOK, gin.H{
+					"err": "无效的id",
+				})
+			}
+
 			var todo Todo
 			err := context.ShouldBindJSON(&todo)
 			if err != nil {
@@ -84,13 +90,11 @@ func main() {
 					"err": err.Error(),
 				})
 			}
-			if err := DB.Model(&Todo{}).Where("id = ?", id).Update("status", todo.Status); err == nil {
-				context.JSON(http.StatusOK, gin.H{
-					"msg": "ok",
-				})
+			if err := DB.Model(&Todo{}).Where("id = ?", id).Update("status", todo.Status).Error; err == nil {
+				context.JSON(http.StatusOK, todo)
 			} else {
 				context.JSON(http.StatusBadRequest, gin.H{
-					"err": err,
+					"err": err.Error(),
 				})
 			}
 
@@ -99,11 +103,11 @@ func main() {
 		//查看所以待办事项
 		v1Group.GET("/todo", func(context *gin.Context) {
 			var todos []Todo
-			if err := DB.Find(&todos); err.Error == nil {
+			if err := DB.Find(&todos).Error; err == nil {
 				context.JSON(http.StatusOK, todos)
 			} else {
-				context.JSON(http.StatusBadRequest, gin.H{
-					"err": err,
+				context.JSON(http.StatusOK, gin.H{
+					"err": err.Error(),
 				})
 			}
 		})
