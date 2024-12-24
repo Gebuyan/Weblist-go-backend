@@ -1,129 +1,25 @@
 package main
 
 import (
-	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/mysql"
-	"net/http"
+	"Weblist-go-backend/dao"
+	"Weblist-go-backend/models"
+	"Weblist-go-backend/routers"
 )
-
-var (
-	DB *gorm.DB
-)
-
-type Todo struct {
-	ID     int    `json:"id"`
-	Title  string `json:"title"`
-	Status bool   `json:"status"`
-}
-
-func initMysql() (err error) {
-	dsn := "root:123456@tcp(127.0.0.1:3306)/weblist?charset=utf8mb4&parseTime=True&loc=Local"
-	DB, err = gorm.Open("mysql", dsn)
-	if err != nil {
-		return
-	}
-	return DB.DB().Ping()
-}
 
 func main() {
 	//创建数据库
 	//sql: create database weblist;
 	//连接数据库
-	err := initMysql()
+	err := dao.InitMysql()
 	if err != nil {
 		panic(err)
 	}
-	defer DB.Close()
+	defer dao.Close()
 	//模型绑定(绑定到表上，如果表不存在则创建)
-	DB.AutoMigrate(&Todo{}) //表名：todos
+	dao.DB.AutoMigrate(&models.Todo{}) //表名：todos
 
-	r := gin.Default()
-
-	//
-	v1Group := r.Group("v1")
-	{
-		//增加待办事项
-		v1Group.POST("/todo", func(context *gin.Context) {
-			var todo Todo
-			if err := context.ShouldBindJSON(&todo); err == nil {
-				fmt.Println("todo is :", todo)
-				DB.Create(&todo)
-				context.JSON(http.StatusOK, gin.H{
-					"msg": "ok",
-				})
-			} else {
-				context.JSON(http.StatusOK, gin.H{
-					"err": err.Error(),
-				})
-			}
-
-		})
-		//删除待办事项
-		v1Group.DELETE("/todo/:id", func(context *gin.Context) {
-
-			id := context.Param("id")
-			if err := DB.Delete(&Todo{}, id).Error; err == nil {
-				context.JSON(http.StatusOK, gin.H{
-					"id": "deleted",
-				})
-			} else {
-				context.JSON(http.StatusBadRequest, gin.H{
-					"err": err.Error(),
-				})
-			}
-		})
-		//修改待办事项
-		v1Group.PUT("/todo/:id", func(context *gin.Context) {
-			id, ok := context.Params.Get("id")
-			if !ok {
-				context.JSON(http.StatusOK, gin.H{
-					"err": "无效的id",
-				})
-			}
-
-			var todo Todo
-			err := context.ShouldBindJSON(&todo)
-			if err != nil {
-				context.JSON(http.StatusBadRequest, gin.H{
-					"err": err.Error(),
-				})
-			}
-			if err := DB.Model(&Todo{}).Where("id = ?", id).Update("status", todo.Status).Error; err == nil {
-				context.JSON(http.StatusOK, todo)
-			} else {
-				context.JSON(http.StatusBadRequest, gin.H{
-					"err": err.Error(),
-				})
-			}
-
-		})
-		//查看待办事项
-		//查看所以待办事项
-		v1Group.GET("/todo", func(context *gin.Context) {
-			var todos []Todo
-			if err := DB.Find(&todos).Error; err == nil {
-				context.JSON(http.StatusOK, todos)
-			} else {
-				context.JSON(http.StatusOK, gin.H{
-					"err": err.Error(),
-				})
-			}
-		})
-		//查看某个待办事项
-		v1Group.GET("/todo/:id", func(context *gin.Context) {
-			var todo Todo
-			id := context.Param("id")
-			if err := DB.Where("id = ?", id).Find(&todo); err == nil {
-				context.JSON(http.StatusOK, todo)
-			} else {
-				context.JSON(http.StatusBadRequest, gin.H{
-					"err": err,
-				})
-			}
-		})
-	}
-
+	//初始化路由
+	r := routers.SetupRouter()
+	//启动
 	r.Run(":9000")
 }
